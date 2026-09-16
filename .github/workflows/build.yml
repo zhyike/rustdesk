@@ -57,8 +57,6 @@ jobs:
           key: rust-cache-${{ github.job }}-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
           restore-keys: |
             rust-cache-${{ github.job }}-
-      - name: Show rust cache hit
-        run: echo "rust cache hit: ${{ steps.cache-rust.outputs.cache-hit }}"
 
       - name: Install Dependencies (vcpkg)
         shell: pwsh
