@@ -74,8 +74,8 @@ jobs:
         shell: pwsh
         run: |
           cd flutter
-          # 锁定frb版本为v1，防止自动升级到v2
-          (Get-Content pubspec.yaml) -replace 'flutter_rust_bridge:.*', 'flutter_rust_bridge: 1.82.5' | Set-Content pubspec.yaml
+          # 锁定frb 1.80.1，该版本使用uuid v3，和rustdesk匹配
+          (Get-Content pubspec.yaml) -replace 'flutter_rust_bridge:.*', 'flutter_rust_bridge: 1.80.1' | Set-Content pubspec.yaml
           flutter pub get
           dart run flutter_rust_bridge:codegen
         env:
