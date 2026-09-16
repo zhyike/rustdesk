@@ -13,13 +13,26 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
       - name: Cache vcpkg installed libs
         uses: actions/cache@v4
         with:
           path: C:\vcpkg\installed
-          key: vcpkg-cache-${{ hashFiles('**/vcpkg.json') }}
+          key: vcpkg-cache-v2-${{ github.job }}
           restore-keys: |
-            vcpkg-cache-
+            vcpkg-cache-v2-
+
+      - name: Cache Flutter pub‑cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: flutter-pub-${{ hashFiles('flutter/pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -32,14 +45,13 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Cache Rust cargo & target
+      - name: Cache Rust cargo
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: rust-cache-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
           restore-keys: |
             rust-cache-
@@ -60,7 +72,6 @@ jobs:
           CUSTOM_ID_SERVER="your-id-server.com"
           CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
           CUSTOM_KEY="your-public-key-here"
-          # sed 修改你自己的config.rs在这里
           echo "Configuration injected."
 
       - name: Build Release with official build.py
