@@ -63,7 +63,8 @@ jobs:
             C:\vcpkg\bootstrap-vcpkg.bat
           }
           echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
-          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static ffmpeg:x64-windows-static libmfx:x64-windows-static --classic
+          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static ffmpeg:x64-windows-static mfx-dispatch:x64-windows-static --classic
+
         shell: pwsh
 
       - name: Configure Custom Server (Optional)
