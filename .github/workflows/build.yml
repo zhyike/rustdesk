@@ -66,12 +66,16 @@ jobs:
           CUSTOM_KEY="your-public-key-here"
           echo "Configuration injected."
       # ========== 新增关键步骤：生成 flutter_rust_bridge 代码 ==========
-      - name: Generate FRB bridge_generated.rs
+      - name: Install flutter_rust_bridge_codegen
+        shell: pwsh
+        run: |
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid
+      - name: Generate FRB code
         shell: pwsh
         run: |
           cd flutter
           flutter pub get
-          dart run flutter_rust_bridge:codegen
+          flutter_rust_bridge_codegen --rust-input ../src/flutter_ffi.rs --dart-output ./lib/generated_bridge.dart
         env:
           VCPKG_ROOT: C:\vcpkg
 
