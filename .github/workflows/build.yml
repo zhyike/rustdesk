@@ -1,11 +1,9 @@
 name: Build RustDesk Client
-
 on:
   push:
     branches: [ "main" ]
     tags: [ 'v*' ]
   workflow_dispatch: # 允许手动触发
-
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -13,49 +11,60 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          submodules: recursive # 重要：RustDesk 依赖子模块
+          submodules: recursive
+
+      - name: Cache vcpkg installed libs
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-cache-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-cache-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          cache: true
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
+      - name: Cache Rust cargo & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-cache-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: |
+            rust-cache-
+
       - name: Install Dependencies (vcpkg)
         run: |
-          # 1. 如果 C:\vcpkg 不存在，则克隆；如果存在，则跳过克隆或拉取更新
           if (-Not (Test-Path "C:\vcpkg")) {
             git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
             C:\vcpkg\bootstrap-vcpkg.bat
-          } else {
-            # 如果已存在，可以选择更新或直接使用
-            # cd C:\vcpkg && git pull # 可选：更新 vcpkg
           }
-          
-          # 2. 设置环境变量
           echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
-          
-          # 3. 使用 --classic 模式安装指定的库
-          # 注意：在 PowerShell 中运行 vcpkg 命令
           C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
-        shell: pwsh # 使用 PowerShell 以便更好地处理 Windows 路径和命令
-        
+        shell: pwsh
+
       - name: Configure Custom Server (Optional)
         shell: bash
         run: |
-          # 这里使用 sed 替换源码中的默认服务器配置
-          # 注意：不同版本源码结构可能不同，需根据实际 src/config.rs 或类似文件调整
           CUSTOM_ID_SERVER="your-id-server.com"
           CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
           CUSTOM_KEY="your-public-key-here"
-          
-          # 示例：替换 config.rs 中的默认值 (需根据实际代码路径调整)
-          # sed -i "s/const DEFAULT_ID_SERVER: &str = \"rustdesk.net\";/const DEFAULT_ID_SERVER: \&str = \"$CUSTOM_ID_SERVER\";/" src/config.rs
-          # sed -i "s/const DEFAULT_RELAY_SERVER: &str = \"rustdesk.net\";/const DEFAULT_RELAY_SERVER: \&str = \"$CUSTOM_RELAY_SERVER\";/" src/config.rs
-          # sed -i "s/const DEFAULT_KEY: &str = \"\";/const DEFAULT_KEY: \&str = \"$CUSTOM_KEY\";/" src/config.rs
+          # sed 修改你自己的config.rs在这里
           echo "Configuration injected."
 
-      - name: Build Release
-        run: cargo build --release --features flutter
+      - name: Build Release with official build.py
+        run: python build.py --flutter --release
         env:
           VCPKG_ROOT: C:\vcpkg
 
@@ -63,4 +72,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-windows-x64
-          path: target/release/rustdesk.exe
+          path: build/out/rustdesk.exe
