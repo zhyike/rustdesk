@@ -55,7 +55,7 @@ jobs:
           echo "Configuration injected."
 
       - name: Build Release
-        run: cargo build --release --features inline --no-default-features
+        run: cargo build --release --features flutter
         env:
           VCPKG_ROOT: C:\vcpkg
 
