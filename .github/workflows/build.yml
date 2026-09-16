@@ -1,0 +1,56 @@
+name: Build RustDesk Client
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ 'v*' ]
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive # 重要：RustDesk 依赖子模块
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Dependencies (vcpkg)
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+          # 设置环境变量
+          echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
+          # 安装 RustDesk 需要的库
+          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+
+      - name: Configure Custom Server (Optional)
+        shell: bash
+        run: |
+          # 这里使用 sed 替换源码中的默认服务器配置
+          # 注意：不同版本源码结构可能不同，需根据实际 src/config.rs 或类似文件调整
+          CUSTOM_ID_SERVER="your-id-server.com"
+          CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
+          CUSTOM_KEY="your-public-key-here"
+          
+          # 示例：替换 config.rs 中的默认值 (需根据实际代码路径调整)
+          # sed -i "s/const DEFAULT_ID_SERVER: &str = \"rustdesk.net\";/const DEFAULT_ID_SERVER: \&str = \"$CUSTOM_ID_SERVER\";/" src/config.rs
+          # sed -i "s/const DEFAULT_RELAY_SERVER: &str = \"rustdesk.net\";/const DEFAULT_RELAY_SERVER: \&str = \"$CUSTOM_RELAY_SERVER\";/" src/config.rs
+          # sed -i "s/const DEFAULT_KEY: &str = \"\";/const DEFAULT_KEY: \&str = \"$CUSTOM_KEY\";/" src/config.rs
+          echo "Configuration injected."
+
+      - name: Build Release
+        run: cargo build --release --features inline --no-default-features
+        env:
+          VCPKG_ROOT: C:\vcpkg
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows-x64
+          path: target/release/rustdesk.exe
