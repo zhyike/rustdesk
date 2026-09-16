@@ -4,30 +4,41 @@ on:
     branches: [ "main" ]
     tags: [ 'v*' ]
   workflow_dispatch: # 允许手动触发
+
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      VCPKG_ROOT: C:\vcpkg
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - name: Cache vcpkg installed libs
+      # ===== 缓存完整vcpkg（源码+安装包，不用每次clone vcpkg） =====
+      - name: Cache full vcpkg
         uses: actions/cache@v4
+        id: cache-vcpkg
         with:
-          path: C:\vcpkg\installed
-          key: vcpkg-cache-v2-${{ github.job }}
+          path: C:\vcpkg
+          key: vcpkg-full-v3-${{ github.job }}
           restore-keys: |
-            vcpkg-cache-v2-
+            vcpkg-full-v3-
+      - name: Show vcpkg cache hit
+        run: echo "vcpkg cache hit: ${{ steps.cache-vcpkg.outputs.cache-hit }}"
 
+      # ===== Flutter pub缓存 =====
       - name: Cache Flutter pub‑cache
         uses: actions/cache@v4
+        id: cache-flutter-pub
         with:
-          path: ~/.pub-cache
+          path: ${{ env.HOME }}\.pub-cache
           key: flutter-pub-${{ hashFiles('flutter/pubspec.lock') }}
           restore-keys: |
             flutter-pub-
+      - name: Show flutter pub cache hit
+        run: echo "flutter pub cache hit: ${{ steps.cache-flutter-pub.outputs.cache-hit }}"
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -40,49 +51,56 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Cache Rust cargo
+      # ===== Rust缓存，包含cargo目录 + 项目target编译产物 =====
+      - name: Cache Rust cargo & target
         uses: actions/cache@v4
+        id: cache-rust
         with:
           path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: rust-cache-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+            ${{ env.HOME }}\.cargo\bin
+            ${{ env.HOME }}\.cargo\registry
+            ${{ env.HOME }}\.cargo\git
+            ./target
+          key: rust-cache-${{ github.job }}-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
           restore-keys: |
-            rust-cache-
+            rust-cache-${{ github.job }}-
+      - name: Show rust cache hit
+        run: echo "rust cache hit: ${{ steps.cache-rust.outputs.cache-hit }}"
 
+      # ===== 安装vcpkg依赖库 =====
       - name: Install Dependencies (vcpkg)
+        shell: pwsh
         run: |
           if (-Not (Test-Path "C:\vcpkg")) {
             git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
             C:\vcpkg\bootstrap-vcpkg.bat
           }
-          echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
-          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
-        shell: pwsh
+          $pkg = "libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static"
+          C:\vcpkg\vcpkg.exe install $pkg --classic
 
-      - name: Configure Custom Server (Optional)
+      # ===== 自定义服务器配置（仅环境变量注入，需要build.py读取才生效） =====
+      - name: Configure Custom Server Env
         shell: bash
         run: |
-          CUSTOM_ID_SERVER="your-id-server.com"
-          CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
-          CUSTOM_KEY="your-public-key-here"
-          echo "Configuration injected."
+          export CUSTOM_ID_SERVER="your-id-server.com"
+          export CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
+          export CUSTOM_KEY="your-public-key-here"
+          echo "Custom server env loaded"
 
-      # ========== 新增关键步骤：生成 flutter_rust_bridge 代码 ==========
-      - name: Generate FRB bridge_generated.rs
+      # ===== 安装FRB v1.80.1全局cli，供build.py内部调用生成bridge_generated.rs =====
+      - name: Install flutter_rust_bridge v1 cli
         shell: pwsh
         run: |
           cd flutter
-          # 锁定frb 1.80.1，该版本使用uuid v3，和rustdesk匹配
-          (Get-Content pubspec.yaml) -replace 'flutter_rust_bridge:.*', 'flutter_rust_bridge: 1.80.1' | Set-Content pubspec.yaml
           flutter pub get
-          dart run flutter_rust_bridge:codegen
-        env:
-          VCPKG_ROOT: C:\vcpkg
+          dart pub global activate flutter_rust_bridge 1.80.1
+          # 将dart全局工具加入PATH
+          $env:PATH += ";${env:USERPROFILE}\.pub\bin"
+          echo "$env:USERPROFILE\.pub\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
+      # ===== 编译，build.py内部自动调用frb生成bridge_generated.rs =====
       - name: Build Release with official build.py
-        run: python build.py --flutter #--hwcodec
+        run: python build.py --flutter
         env:
           VCPKG_ROOT: C:\vcpkg
 
