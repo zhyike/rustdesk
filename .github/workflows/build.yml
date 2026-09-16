@@ -65,8 +65,10 @@ jobs:
             git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
             C:\vcpkg\bootstrap-vcpkg.bat
           }
-          $pkg = "libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static"
-          C:\vcpkg\vcpkg.exe install $pkg --classic
+          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static --classic
+          C:\vcpkg\vcpkg.exe install libyuv:x64-windows-static --classic
+          C:\vcpkg\vcpkg.exe install opus:x64-windows-static --classic
+          C:\vcpkg\vcpkg.exe install aom:x64-windows-static --classic
 
       - name: Configure Custom Server Env
         shell: bash
