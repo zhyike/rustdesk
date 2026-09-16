@@ -63,7 +63,7 @@ jobs:
             C:\vcpkg\bootstrap-vcpkg.bat
           }
           echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
-          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static ffmpeg:x64-windows-static mfx-dispatch:x64-windows-static --classic
+          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
 
         shell: pwsh
 
@@ -76,7 +76,7 @@ jobs:
           echo "Configuration injected."
 
       - name: Build Release with official build.py
-        run: python build.py --flutter --hwcodec
+        run: python build.py --flutter #--hwcodec
         env:
           VCPKG_ROOT: C:\vcpkg
 
