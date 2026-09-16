@@ -13,11 +13,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
       - name: Cache vcpkg installed libs
         uses: actions/cache@v4
         with:
@@ -64,7 +59,6 @@ jobs:
           }
           echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
           C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
-
         shell: pwsh
 
       - name: Configure Custom Server (Optional)
@@ -74,6 +68,16 @@ jobs:
           CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
           CUSTOM_KEY="your-public-key-here"
           echo "Configuration injected."
+
+      # ========== 新增关键步骤：生成 flutter_rust_bridge 代码 ==========
+      - name: Generate FRB bridge_generated.rs
+        shell: pwsh
+        run: |
+          cd flutter
+          flutter pub get
+          dart run flutter_rust_bridge:codegen
+        env:
+          VCPKG_ROOT: C:\vcpkg
 
       - name: Build Release with official build.py
         run: python build.py --flutter #--hwcodec
