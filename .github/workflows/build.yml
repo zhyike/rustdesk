@@ -3,37 +3,30 @@ on:
   push:
     branches: [ "main" ]
     tags: [ 'v*' ]
-  workflow_dispatch:
-
+  workflow_dispatch: # 允许手动触发
 jobs:
   build-windows:
     runs-on: windows-latest
-    env:
-      VCPKG_ROOT: C:\vcpkg
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - name: Cache full vcpkg
+      - name: Cache vcpkg installed libs
         uses: actions/cache@v4
-        id: cache-vcpkg
         with:
-          path: C:\vcpkg
-          key: vcpkg-full-v3-${{ github.job }}
+          path: C:\vcpkg\installed
+          key: vcpkg-cache-v2-${{ github.job }}
           restore-keys: |
-            vcpkg-full-v3-
-
+            vcpkg-cache-v2-
       - name: Cache Flutter pub‑cache
         uses: actions/cache@v4
-        id: cache-flutter-pub
         with:
           path: ~/.pub-cache
           key: flutter-pub-${{ hashFiles('flutter/pubspec.lock') }}
           restore-keys: |
             flutter-pub-
-
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -45,50 +38,45 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Cache Rust cargo & target
+      - name: Cache Rust cargo
         uses: actions/cache@v4
-        id: cache-rust
         with:
           path: |
             ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
-            ./target
-          key: rust-cache-${{ github.job }}-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
+          key: rust-cache-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
           restore-keys: |
-            rust-cache-${{ github.job }}-
-
+            rust-cache-
       - name: Install Dependencies (vcpkg)
-        shell: pwsh
         run: |
           if (-Not (Test-Path "C:\vcpkg")) {
             git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
             C:\vcpkg\bootstrap-vcpkg.bat
           }
-          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static --classic
-          C:\vcpkg\vcpkg.exe install libyuv:x64-windows-static --classic
-          C:\vcpkg\vcpkg.exe install opus:x64-windows-static --classic
-          C:\vcpkg\vcpkg.exe install aom:x64-windows-static --classic
+          echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
+          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
+        shell: pwsh
 
-      - name: Configure Custom Server Env
+      - name: Configure Custom Server (Optional)
         shell: bash
         run: |
-          export CUSTOM_ID_SERVER="your-id-server.com"
-          export CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
-          export CUSTOM_KEY="your-public-key-here"
-          echo "Custom server env loaded"
-
-      - name: Install flutter_rust_bridge v1 cli
+          CUSTOM_ID_SERVER="your-id-server.com"
+          CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
+          CUSTOM_KEY="your-public-key-here"
+          echo "Configuration injected."
+      # ========== 新增关键步骤：生成 flutter_rust_bridge 代码 ==========
+      - name: Generate FRB bridge_generated.rs
         shell: pwsh
         run: |
           cd flutter
           flutter pub get
-          dart pub global activate flutter_rust_bridge 1.80.1
-          $env:PATH += ";${env:USERPROFILE}\.pub\bin"
-          echo "$env:USERPROFILE\.pub\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          dart run flutter_rust_bridge:codegen
+        env:
+          VCPKG_ROOT: C:\vcpkg
 
       - name: Build Release with official build.py
-        run: python build.py --flutter
+        run: python build.py --flutter #--hwcodec
         env:
           VCPKG_ROOT: C:\vcpkg
 
