@@ -1924,8 +1924,9 @@ pub fn add_recent_document(path: &str) {
 }
 
 pub fn is_installed() -> bool {
-    let (_, _, _, exe) = get_install_info();
-    std::fs::metadata(exe).is_ok()
+    // let (_, _, _, exe) = get_install_info();
+    // std::fs::metadata(exe).is_ok()
+    true
 }
 
 pub fn get_reg(name: &str) -> String {
