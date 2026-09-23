@@ -1,0 +1,100 @@
+name: Build RustDesk Client
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ 'v*' ]
+  workflow_dispatch: # 允许手动触发
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      # ========== 新增：安装VS C++编译组件 ==========
+      - name: Install Visual Studio 2019 Build Tools (Desktop C++)
+        shell: pwsh
+        run: |
+          choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+          refreshenv
+      - name: Cache vcpkg installed libs
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-cache-v2-${{ github.job }}
+          restore-keys: |
+            vcpkg-cache-v2-
+      - name: Cache Flutter pub‑cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: flutter-pub-${{ hashFiles('flutter/pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          cache: true
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Cache Rust cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-cache-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: |
+            rust-cache-
+      - name: Install Dependencies (vcpkg)
+        run: |
+          if (-Not (Test-Path "C:\vcpkg")) {
+            git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat
+          }
+          echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
+          C:\vcpkg\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static --classic
+        shell: pwsh
+      - name: Configure Custom Server (Optional)
+        shell: bash
+        run: |
+          CUSTOM_ID_SERVER="your-id-server.com"
+          CUSTOM_RELAY_SERVER="your-relay-server.com:21117"
+          CUSTOM_KEY="your-public-key-here"
+          echo "Configuration injected."
+      # ========== 新增关键步骤：生成 flutter_rust_bridge 代码 ==========
+      - name: Install flutter_rust_bridge_codegen
+        shell: pwsh
+        run: |
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --force
+      - name: Generate FRB code
+        shell: pwsh
+        run: |
+          cd flutter
+          flutter pub get
+          flutter_rust_bridge_codegen --rust-input ../src/flutter_ffi.rs --dart-output ./lib/generated_bridge.dart
+        env:
+          VCPKG_ROOT: C:\vcpkg
+
+      # ========== 构建，启用Ninja避免依赖VS生成器问题 ==========
+      - name: Build Release with official build.py
+        run: python build.py --flutter #--hwcodec
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          CMAKE_GENERATOR: Ninja
+
+      # 调试：列出编译产物目录
+      - name: List flutter build output
+        shell: pwsh
+        run: |
+          Get-ChildItem flutter/build/windows -Recurse
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows-x64
+          path: flutter/build/windows/x64/runner/Release/
